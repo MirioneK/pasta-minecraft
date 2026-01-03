@@ -86,6 +86,183 @@
 </head>
 
 <body>
+    <!-- ========= AUDIO ========= -->
+<audio id="bgAudio" src="audio/alone.mp3" preload="auto" loop></audio>
+<audio id="scareAudio" src="audio/enderman.mp3" preload="auto"></audio>
+
+<!-- ========= START OVERLAY (wymusza klik, żeby audio ruszyło w przeglądarkach) ========= -->
+<div id="startOverlay" style="
+  position:fixed; inset:0; z-index:9998;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.75); color:#fff;
+  font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;">
+  <button id="startBtn" style="
+    padding:14px 18px; border-radius:12px;
+    border:1px solid rgba(255,255,255,.25);
+    background:#111827; color:#fff; cursor:pointer;
+    font-size:16px;">
+    Kliknij, aby uruchomić dźwięk
+  </button>
+</div>
+
+<!-- ========= JUMPSCARE OVERLAY (bez migania) ========= -->
+<div id="scareOverlay" aria-hidden="true" style="
+  position:fixed; inset:0; z-index:9999;
+  display:none; background:#000;">
+  <img id="scareImg" src="img/images.jpg" alt="Herobrine" style="
+    width:100vw; height:100vh; object-fit:cover; display:block;">
+  <div id="noise" aria-hidden="true"></div>
+
+  <button id="closeScare" style="
+    position:fixed; top:16px; right:16px;
+    padding:10px 12px; border-radius:12px;
+    border:1px solid rgba(255,255,255,.25);
+    background:rgba(17,24,39,.8); color:#fff; cursor:pointer;">
+    Zamknij
+  </button>
+</div>
+
+<!-- ========= STYLE (glitch + shake, bez szybkiego migania) ========= -->
+<style>
+  @keyframes shake {
+    0% { transform: translate(0,0) rotate(0deg); }
+    10% { transform: translate(-6px, 4px) rotate(-0.6deg); }
+    20% { transform: translate(7px, -3px) rotate(0.7deg); }
+    30% { transform: translate(-5px, -4px) rotate(-0.4deg); }
+    40% { transform: translate(6px, 3px) rotate(0.5deg); }
+    50% { transform: translate(-4px, 2px) rotate(-0.3deg); }
+    60% { transform: translate(5px, -2px) rotate(0.4deg); }
+    70% { transform: translate(-3px, -3px) rotate(-0.2deg); }
+    80% { transform: translate(4px, 2px) rotate(0.3deg); }
+    90% { transform: translate(-2px, 1px) rotate(-0.1deg); }
+    100% { transform: translate(0,0) rotate(0deg); }
+  }
+
+  @keyframes zoomIn {
+    from { transform: scale(1); filter: contrast(1.05) saturate(1.1); }
+    to   { transform: scale(1.06); filter: contrast(1.25) saturate(1.3); }
+  }
+
+  /* Bezpieczny flicker: wolny i delikatny */
+  @keyframes safeFlicker {
+    0%, 100% { opacity: 0; }
+    20% { opacity: .10; }
+    40% { opacity: 0; }
+    60% { opacity: .12; }
+    80% { opacity: 0; }
+  }
+
+  #noise{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background-image:
+      repeating-linear-gradient(0deg,
+        rgba(255,255,255,.06),
+        rgba(255,255,255,.06) 1px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0) 4px);
+    mix-blend-mode: overlay;
+    opacity: 0;
+  }
+
+  .scare-on { animation: shake 650ms linear 0s 2; }
+  .scare-on #scareImg { animation: zoomIn 900ms ease-out forwards; }
+  .scare-on #noise { opacity: 1; animation: safeFlicker 900ms linear 0s 4; }
+
+  @media (prefers-reduced-motion: reduce){
+    .scare-on, .scare-on #scareImg, .scare-on #noise { animation: none !important; }
+  }
+</style>
+
+<!-- ========= SCRIPT (trigger dopiero po scrollu + na dole strony) ========= -->
+<script>
+  const bgAudio = document.getElementById('bgAudio');
+  const scareAudio = document.getElementById('scareAudio');
+
+  const startOverlay = document.getElementById('startOverlay');
+  const startBtn = document.getElementById('startBtn');
+
+  const scareOverlay = document.getElementById('scareOverlay');
+  const closeScare = document.getElementById('closeScare');
+
+  let triggered = false;
+  let audioEnabled = false;
+
+  function safePlay(el){
+    const p = el.play();
+    if (p && p.catch) p.catch(()=>{});
+  }
+
+  function atBottom(pixels = 10) {
+    const scrollPos = window.scrollY + window.innerHeight;
+    const docHeight = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight
+    );
+    return scrollPos >= docHeight - pixels;
+  }
+
+  function triggerScare(){
+    if (triggered) return;
+    triggered = true;
+
+    // przełącz audio
+    if (audioEnabled) {
+      bgAudio.volume = 0.05;
+      scareAudio.currentTime = 0;
+      scareAudio.volume = 1.0;
+      safePlay(scareAudio);
+    }
+
+    // pokaż overlay
+    scareOverlay.style.display = 'block';
+    scareOverlay.setAttribute('aria-hidden', 'false');
+    scareOverlay.classList.add('scare-on');
+
+    // blokada scrolla
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function maybeTriggerScare(){
+    if (triggered) return;
+    if (window.scrollY < 300) return; // wymagaj realnego scrolla
+    if (!atBottom(20)) return;        // i bycia blisko końca
+    triggerScare();
+  }
+
+  // uruchom tło dopiero po kliknięciu (autoplay blokowany)
+  startBtn.addEventListener('click', () => {
+    startOverlay.style.display = 'none';
+    audioEnabled = true;
+
+    bgAudio.volume = 0.35;
+    safePlay(bgAudio);
+  });
+
+  // trigger tylko po scrollu
+  window.addEventListener('scroll', maybeTriggerScare, { passive: true });
+
+  // zamknięcie overlay
+  closeScare.addEventListener('click', () => {
+    // pauza jumpscare audio + reset
+    scareAudio.pause();
+    scareAudio.currentTime = 0;
+
+    // ukryj overlay
+    scareOverlay.classList.remove('scare-on');
+    scareOverlay.style.display = 'none';
+    scareOverlay.setAttribute('aria-hidden', 'true');
+
+    // odblokuj scroll
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+
+    // przywróć tło (opcjonalnie)
+    if (audioEnabled) bgAudio.volume = 0.35;
+  });
+</script>
+
   <div class="wrap">
     <div class="card">
       <div class="content">
